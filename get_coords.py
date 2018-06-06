@@ -7,6 +7,7 @@ ContactNetwork
 import pymol
 import time
 import numpy as np
+import sys
 # import networkit as nk
 
 # TODO: Enable option to download PDB structures as need be followed by deletion,
@@ -19,6 +20,13 @@ import numpy as np
 
 # TODO: Add an option for changing what the nucleotide atom of choice is
 
+
+'''
+This class defines and contains the PyMol interface code with which we obtain
+the dataframe containing the residue index, Euclidean location, and
+corresponding chain name of the specific amino acid / nucleotide atoms we are
+using to construct a contact network.
+'''
 class CoordConstruct:
 
     '''
@@ -38,11 +46,14 @@ class CoordConstruct:
         pass # Unimplemented
 
 
-# # Launches headless PyMol quietly
-pymol.finish_launching(['pymol', '-qc'])
+# Easy way to launch with/without GUI (fix later)
+if len(sys.argv) == 2:
+    # Launches PyMol quietly with GUI
+    pymol.finish_launching(['pymol', '-q'])
+else:
+    # Launches headless PyMol quietly
+    pymol.finish_launching(['pymol', '-qc'])
 
-# Launches PyMol quietly with GUI
-# pymol.finish_launching(['pymol', '-q'])
 
 # The cmd object is equivalent to the PyMol command line, and refers to the
 # object which has functions corresponding to PyMol's API (poorly documented)
@@ -85,6 +96,30 @@ cmd.iterate_state(1, "aa_ca", "stored.aa_chains.append(chain)")
 # Gets the PyMol unique index associated with each alpha carbon in aa_ca
 stored.aa_index = []
 cmd.iterate_state(1, "aa_ca", "stored.aa_index.append(index)")
+# print(len(stored.aa_index))
+
+# Gets Euclidean position of each C1' within nucleo_C1
+stored.nt_xyz = []
+cmd.iterate_state(1,"nucleo_C1","stored.nt_xyz.append([x,y,z])")
+
+# Gets the chain associated with each alpha carbon in aa_ca
+stored.nt_chains = []
+cmd.iterate_state(1, "nucleo_C1", "stored.nt_chains.append(chain)")
+
+# Gets the PyMol unique index associated with each alpha carbon in aa_ca
+stored.nt_index = []
+cmd.iterate_state(1, "nucleo_C1", "stored.nt_index.append(index)")
+
+print("There are {} nucleotides in the network".format(len(stored.nt_index)))
+print("There are {} amino acids in the network".format(len(stored.aa_index)))
+
+# TODO: Add code which combines the data (preferably into a dataframe of some
+#       sort which then can be manipulated/returned in additional code)
+
+# TODO: See if it's faster to calculate distances yourself, or to use pymol
+#       distance commands (I think the latter will be orders of magnitude faster)
+
+
 
 # TODO: Add edge construction code in either networkit or graph-tool
 #       (Requires benchmarking them first)
