@@ -34,7 +34,7 @@ class NetworkConstructor:
         df = pd.read_csv(position_path)
 
         if csn_type is "thresh":
-            print(df['resi'])
+            print(df['index'])
 
 if __name__ == "__main__":
     NetworkConstructor("data/positions/5jup.csv", "thresh")
