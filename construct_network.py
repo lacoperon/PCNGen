@@ -27,10 +27,9 @@ Input:
     out_path      - Output graph save path (None if returning networkit object)
 '''
 class NetworkConstructor:
-    __init__(self, position_path, csn_type, min_thresh=0,
-             max_thresh=8, out_path=None):
-         assert csn_type in ["thresh"] # shadow networks are unimplemented
-         
+    __init__(self, position_path, csn_type, min_thresh=0, max_thresh=8, out_path=None):
+        assert csn_type in ["thresh"] # shadow networks are unimplemented
+
         # Reads in positional dataset
         df = pd.read_csv(position_path)
 
