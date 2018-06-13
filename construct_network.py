@@ -29,11 +29,10 @@ Input:
 class NetworkConstructor:
     __init__(self, position_path, csn_type, min_thresh=0,
              max_thresh=8, out_path=None):
-             assert csn_type in ["thresh"] # shadow networks are unimplemented
+         assert csn_type in ["thresh"] # shadow networks are unimplemented
+         
+        # Reads in positional dataset
+        df = pd.read_csv(position_path)
 
-
-    # Reads in positional dataset
-    df = pd.read_csv(position_path)
-
-    if csn_type is "thresh":
-        print(df['resi'])
+        if csn_type is "thresh":
+            print(df['resi'])
