@@ -35,3 +35,6 @@ class NetworkConstructor:
 
         if csn_type is "thresh":
             print(df['resi'])
+
+if __name__ == "__main__":
+    NetworkConstructor("data/positions/5jup.csv", "thresh")
