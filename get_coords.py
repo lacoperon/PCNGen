@@ -2,12 +2,20 @@
 Elliot Williams
 June 1st, 2018
 ContactNetwork
+
+This file aims to construct a dataframe of points based on the PDB input files,
+corresponding the the CA position in residues and C1' position in nucleotides.
+
+The result of this code will be a csv file output to
+
 '''
 
 import pymol
 import time
 import numpy as np
 import sys
+import pandas as pd
+import glob
 # import networkit as nk
 
 # TODO: Enable option to download PDB structures as need be followed by deletion,
@@ -33,7 +41,7 @@ class CoordConstruct:
     Class initialization function
     Input:
         struct_names : String list of structures to construct networks for
-                       (these should be located within data/ ),
+                       (these should be located within pdb_structs/ ),
         type         : Contact network type ("aa", "nt", or "both"),
         min_thresh   : Minimum distance threshold for 'contact' in angstroms,
         max_thresh   : Maximum distance threshold for 'contact' in angstroms,
@@ -43,85 +51,137 @@ class CoordConstruct:
     '''
     def __init__(self, struct_names, type="both", min_thresh=None,
                  max_thresh=8, valid_chains=None):
-        pass # Unimplemented
+
+        # The cmd object is equivalent to the PyMol command line, and refers to the
+        # object which has functions corresponding to PyMol's API (poorly documented)
+        # See: https://pymol.org/dokuwiki/doku.php?id=api:cmd:alpha
+        self.cmd = pymol.cmd
+        cmd = pymol.cmd
+        self.stored = pymol.stored
+        stored = pymol.stored
+
+        for struct_name in struct_names:
+
+            actual_name = struct_name.split('/')[-1]
+            print(actual_name)
+
+            print("> Opening {}".format(struct_name))
+
+            # Launches headless PyMol quietly
+            pymol.finish_launching(['pymol', '-qc'])
+
+            # Opens structure in headless PyMol
+            cmd.load(struct_name)
+
+            # Assigns default values to amino acid, nucleotide parameters, to
+            # deal with cases in which we don't want to include whole network
+            # data.
+
+            aa_x, aa_y, aa_z, aa_chains, aa_index, aa_resi, aa_resn = [ [] ]*7
+            nt_x, nt_y, nt_z, nt_chains, nt_index, nt_resi, nt_resn = [ [] ]*7
+
+            if type in ["aa", "both"]:
+                # Gets Euclidean position, chain name, PyMol index for amino acids
+                aa_xyz, aa_chains, aa_index, aa_resi, aa_resn = self.get_aa_data()
+                aa_x, aa_y, aa_z = zip(*aa_xyz)
+                print("There are {} amino acids in the network".format(len(aa_index)))
+
+            if type in ["nt", "both"]:
+                # Gets Euclidean position, chain name, PyMol index for nucleotides
+                nt_xyz, nt_chains, nt_index, nt_resi, nt_resn = self.get_nt_data()
+                nt_x, nt_y, nt_z = zip(*nt_xyz)
+                print("There are {} nucleotides in the network".format(len(nt_index)))
+
+            # Constructs DataFrame from the above PyMol gleaned data
+            df = pd.DataFrame({'x': nt_x + aa_x, 'y': nt_y + aa_y, 'z': nt_z + aa_y,
+                                 'chain': nt_chains + aa_chains,
+                                 'index': nt_index  + aa_index,
+                                 'resi' : nt_resi   + aa_resi ,
+                                 'resn' : nt_resn   + aa_resn ,
+                                 'type': ['nucleotide']*len(nt_x)+['amino acid']*len(aa_x)})
+
+            print("Writing positional CSV to `data/positions/`")
+            df.to_csv("data/positions/{}.csv".format(actual_name[:-4]))
+
+            # Deletes the molecule from PyMol, preventing memory issues
+            cmd.delete("all")
 
 
-# Easy way to launch with/without GUI (fix later)
-if len(sys.argv) == 2:
-    # Launches PyMol quietly with GUI
-    pymol.finish_launching(['pymol', '-q'])
-else:
-    # Launches headless PyMol quietly
-    pymol.finish_launching(['pymol', '-qc'])
+    def get_aa_data(self):
+
+        cmd = self.cmd
+        stored = self.stored
+
+        # Selects the alpha carbon associated with each amino acid
+        cmd.select("aa_ca", "name ca")
+
+        # Gets Euclidean position of each alpha carbon in aa_ca
+        stored.aa_xyz = []
+        cmd.iterate_state(1,"aa_ca","stored.aa_xyz.append([x,y,z])")
+
+        # Gets the chain associated with each alpha carbon in aa_ca
+        stored.aa_chains = []
+        cmd.iterate_state(1, "aa_ca", "stored.aa_chains.append(chain)")
+
+        # Gets the PyMol unique index associated with each alpha carbon in aa_ca
+        stored.aa_index = []
+        cmd.iterate_state(1, "aa_ca", "stored.aa_index.append(index)")
+
+        # Gets the residue index associated with each alpha carbon in aa_ca
+        stored.aa_resi = []
+        cmd.iterate_state(1, "aa_ca", "stored.aa_resi.append(resi)")
+
+        # Gets the amino acid type associated w each alpha carbon in aa_ca
+        stored.aa_resn = []
+        cmd.iterate_state(1, "aa_ca", "stored.aa_resn.append(resn)")
+
+        return (stored.aa_xyz, stored.aa_chains, stored.aa_index,
+               stored.aa_resi, stored.aa_resn)
 
 
-# The cmd object is equivalent to the PyMol command line, and refers to the
-# object which has functions corresponding to PyMol's API (poorly documented)
-# See: https://pymol.org/dokuwiki/doku.php?id=api:cmd:alpha
-cmd = pymol.cmd
-stored = pymol.stored
 
-struct_name = "5jup.pdb"
+    def get_nt_data(self):
 
-# Opens test structure (in this case, PDB code 5JUP Korostelev Ribosome struct)
-cmd.load("pdb_structs/{}".format(struct_name))
+        cmd = self.cmd
+        stored = self.stored
 
-chain_names = cmd.get_chains()
+        # Selects the C1' associated with each nucleotide
+        cmd.select("nucleo_C1", "name C1' and resn a+c+g+u")
 
-print("Structure {} has chains {}".format(struct_name, chain_names))
+        # Gets Euclidean position of each C1' within nucleo_C1
+        stored.nt_xyz = []
+        cmd.iterate_state(1,"nucleo_C1","stored.nt_xyz.append([x,y,z])")
+        nt_x, nt_y, nt_z = zip(*stored.nt_xyz)
 
-# Hides everything (for testing visualization -- TODO: Delete later)
-cmd.hide("everything","all")
+        # Gets the chain associated with each C1' in nucleo_C1
+        stored.nt_chains = []
+        cmd.iterate_state(1, "nucleo_C1", "stored.nt_chains.append(chain)")
 
-# Selects the alpha carbon associated with each amino acid
-cmd.select("aa_ca", "name ca")
-cmd.show("dots", "aa_ca") # TODO: Delete later, for testing visualization
-cmd.color("red", "aa_ca") # TODO: Delete later, for testing visualization
+        # Gets the PyMol unique index associated with each C1' in nucleo_C1
+        stored.nt_index = []
+        cmd.iterate_state(1, "nucleo_C1", "stored.nt_index.append(index)")
 
-# Selects the C1' associated with each nucleotide
-cmd.select("nucleo_C1", "name C1' and resn a+c+g+u")
-cmd.show("dots", "nucleo_C1") # TODO: Delete later, for testing visualization
-cmd.color("blue", "nucleo_C1") # TODO: Delete later, for testing visualization
+        # Gets the residue index associated with each C1' in nucleo_C1
+        stored.nt_resi = []
+        cmd.iterate_state(1, "nucleo_C1", "stored.nt_resi.append(resi)")
 
-cmd.deselect() # TODO: Delete later, for testing visualization
+        # Gets the base type associated with each C1' in nucleo_C1
+        stored.nt_resn = []
+        cmd.iterate_state(1, "nucleo_C1", "stored.nt_resn.append(resn)")
 
-# Gets Euclidean position of each alpha carbon in aa_ca
-stored.aa_xyz = []
-cmd.iterate_state(1,"aa_ca","stored.aa_xyz.append([x,y,z])")
+        return (stored.nt_xyz, stored.nt_chains, stored.nt_index,
+               stored.nt_resi, stored.nt_resn)
 
-# Gets the chain associated with each alpha carbon in aa_ca
-stored.aa_chains = []
-cmd.iterate_state(1, "aa_ca", "stored.aa_chains.append(chain)")
+if __name__ == "__main__":
 
-# Gets the PyMol unique index associated with each alpha carbon in aa_ca
-stored.aa_index = []
-cmd.iterate_state(1, "aa_ca", "stored.aa_index.append(index)")
-# print(len(stored.aa_index))
+    struct_names = glob.glob("data/pdb_structs/*.pdb")
+    print(">> Reading in {} structures".format(len(struct_names)))
+    CoordConstruct(struct_names, type="both", min_thresh=None,
+                 max_thresh=8, valid_chains=None)
 
-# Gets Euclidean position of each C1' within nucleo_C1
-stored.nt_xyz = []
-cmd.iterate_state(1,"nucleo_C1","stored.nt_xyz.append([x,y,z])")
-
-# Gets the chain associated with each alpha carbon in aa_ca
-stored.nt_chains = []
-cmd.iterate_state(1, "nucleo_C1", "stored.nt_chains.append(chain)")
-
-# Gets the PyMol unique index associated with each alpha carbon in aa_ca
-stored.nt_index = []
-cmd.iterate_state(1, "nucleo_C1", "stored.nt_index.append(index)")
-
-print("There are {} nucleotides in the network".format(len(stored.nt_index)))
-print("There are {} amino acids in the network".format(len(stored.aa_index)))
-
-# TODO: Add code which combines the data (preferably into a dataframe of some
-#       sort which then can be manipulated/returned in additional code)
 
 # TODO: See if it's faster to calculate distances yourself, or to use pymol
 #       distance commands (I think the latter will be orders of magnitude faster)
 
-
-
 # TODO: Add edge construction code in either networkit or graph-tool
 #       (Requires benchmarking them first)
-
-# exit()
