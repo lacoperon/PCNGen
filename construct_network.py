@@ -18,6 +18,7 @@ import sys
 import networkit as nk
 from math import sqrt
 import numpy as np
+import os
 
 pd.options.mode.chained_assignment = None
 
@@ -103,8 +104,17 @@ if __name__ == "__main__":
     min_thresh = int(sys.argv[1])
     max_thresh = int(sys.argv[2])
 
+    print("-- Welcome to the Contact Network Constructor --")
+    print("(Constructing basic network with min={}, max={})".format(
+        min_thresh, max_thresh))
+    print("\nWe hope your stay with us is pleasant and enjoyable")  
+
     # Iterates over every position CSV within the folder
-    for position_file in glob.glob('data/CSN_graphs/positions/*.csv'):
+    for pos_file in glob.glob('data/positions/*.csv'):
         out_file = "data/CSN_graphs/{}_{}A_{}.graph".format(
-            position_file.split("/")[-1][:-4], max_thresh, csn_type)
-        NetworkConstructor(position_file, "thresh", 0, max_thresh, out_file)
+            pos_file.split("/")[-1][:-4], max_thresh, "thresh")
+
+        if not os.path.isfile(out_file):
+            NetworkConstructor(pos_file, "thresh", 0, max_thresh, out_file, False)
+        else:
+            print("Already Exists: {}".format(out_file))
