@@ -13,6 +13,7 @@ The result of this code will be graphs saved in [some format] within
 
 import pandas as pd
 import glob
+import sys
 import networkit as nk
 from math import sqrt
 import numpy as np
@@ -25,22 +26,23 @@ and either return it or output it to the `data/CSN_graphs` directory
 
 Input:
     position_path - path to the node position file used to construct the graph
-    csn_type  - the type of network constructed (in ["thresh", "shadow"])
+    csn_type      - type of network constructed (in ["thresh", "shadow"])
     min_thresh    - the minimum distance bw nodes for contacts to be considered
     max_thresh    - the maximum distance bw nodes for contacts to be considered
     out_path      - Output graph save path (None if returning networkit object)
+    verbose       - whether or not the constructor should be verbose
 '''
 class NetworkConstructor:
-    def __init__(self, position_path, csn_type, min_thresh=0, max_thresh=8, out_path=None):
+    def __init__(self, position_path, csn_type, min_thresh=0, max_thresh=8,
+                 out_path=None, verbose = True):
         assert csn_type in ["thresh"] # shadow networks are unimplemented
 
-        print("Starting reading in the csv")
+        if verbose:
+            print("Reading in {}".format(position_path.split("/")[-1]))
 
         # Reads in positional dataset
         df = pd.read_csv(position_path)
         df['node_id'] = range(df.shape[0])
-
-        print("Read in the csv")
 
         if csn_type is "thresh":
             print("Starting network connecting code")
@@ -49,7 +51,8 @@ class NetworkConstructor:
 
             i = 0
             while df.shape[0] > 0:
-                print("Currently dealing with node {}".format(i))
+                if verbose:
+                    print("Currently dealing with node {}".format(i))
 
                 curr_node = df['node_id'][i]
                 cx, cy, cz = df['x'][i], df['y'][i], df['z'][i]
@@ -78,11 +81,26 @@ class NetworkConstructor:
 
                 i += 1
 
-            print("Outputting graph")
-            nk.graphio.writeGraph(G, "data/CSN_graphs/5jup.graphviz", Format.GraphViz)
+            if out_file is not None:
+                if verbose:
+                    print("Writing graph to {}".format(outfile))
+                nk.graphio.writeGraph(G, outfile, nk.Format.METIS)
+            else:
+                if verbose:
+                    print("Returning graph object")
+                return G
 
 
 
 
 if __name__ == "__main__":
-    NetworkConstructor("data/positions/5jup.csv", "thresh")
+
+    # Should take the distance cutoffs as arguments to the Python file
+    assert len(sys.argv) == 3
+    min_thresh = int(sys.argv[1])
+    max_thresh = int(sys.argv[2])
+
+    for position_file in glob.glob('data/CSN_graphs/positions/*.csv'):
+        out_file = "data/CSN_graphs/{}_{}A_{}.graph".format(
+            position_file.split("/")[-1][:-4], max_thresh, csn_type)
+        NetworkConstructor(position_file, "thresh", 0, max_thresh, out_file)
