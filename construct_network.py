@@ -1,14 +1,15 @@
 '''
 Elliot Williams
-June 1st, 2018
-ContactNetwork
+June 14th, 2018
+ContactNetwork -- Network Construction
 
 This file aims to construct graphs readily available for analysis in the
 networkit package -- allowing us to reason about the topological structures
 associated with ribosome networks across different crystal structures.
 
-The result of this code will be graphs saved in [some format] within
-`data/CSN_graphs`, or a networkit object return.
+The result of this code will be graphs saved in METIS within
+`data/CSN_graphs`, or a networkit object return
+(not recommended -- this takes a while for ribosome structures).
 '''
 
 import pandas as pd
@@ -47,6 +48,7 @@ class NetworkConstructor:
         if csn_type is "thresh":
             print("Starting network connecting code")
 
+            # Creates a new networkit graph with the correct number of nodes
             G = nk.graph.Graph(n=df.shape[0])
 
             i = 0
@@ -54,11 +56,13 @@ class NetworkConstructor:
                 if verbose:
                     print("Currently dealing with node {}".format(i))
 
+                # Gets the positional and index info for current node
                 curr_node = df['node_id'][i]
                 cx, cy, cz = df['x'][i], df['y'][i], df['z'][i]
 
                 df = df.iloc[1:] # Deletes first row of dataframe
 
+                # Filters out nodes that can't be within contact range
                 df_filt = df.query('@cx - @max_thresh < x')
                 df_filt = df_filt.query('x < @cx + @max_thresh')
 
@@ -68,14 +72,16 @@ class NetworkConstructor:
                 df_filt = df_filt.query("@cz - @max_thresh < z")
                 df_filt = df_filt.query("z < @cz + @max_thresh")
 
-
+                # Does actual distance calculation, for the remaining nodes
                 df_filt['dx2']  = (df_filt['x'] - cx) ** 2
                 df_filt['dy2']  = (df_filt['y'] - cy) ** 2
                 df_filt['dz2']  = (df_filt['z'] - cz) ** 2
                 df_filt['dist'] = np.sqrt(df_filt['dx2'] + df_filt['dy2'] + df_filt['dz2'])
 
+                # Selects only those nodes within contact range
                 df_filt = df_filt.query("dist > @min_thresh and dist < @max_thresh")
 
+                # Adds edges between the contacting nodes
                 for neigh_node in df_filt['node_id']:
                     G.addEdge(curr_node, neigh_node)
 
@@ -83,15 +89,12 @@ class NetworkConstructor:
 
             if out_file is not None:
                 if verbose:
-                    print("Writing graph to {}".format(outfile))
+                    print("Writing graph to {}".format(out_file))
                 nk.graphio.writeGraph(G, outfile, nk.Format.METIS)
             else:
                 if verbose:
                     print("Returning graph object")
                 return G
-
-
-
 
 if __name__ == "__main__":
 
@@ -100,6 +103,7 @@ if __name__ == "__main__":
     min_thresh = int(sys.argv[1])
     max_thresh = int(sys.argv[2])
 
+    # Iterates over every position CSV within the folder
     for position_file in glob.glob('data/CSN_graphs/positions/*.csv'):
         out_file = "data/CSN_graphs/{}_{}A_{}.graph".format(
             position_file.split("/")[-1][:-4], max_thresh, csn_type)
