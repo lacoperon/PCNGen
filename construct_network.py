@@ -107,7 +107,11 @@ if __name__ == "__main__":
     print("-- Welcome to the Contact Network Constructor --")
     print("(Constructing basic network with min={}, max={})".format(
         min_thresh, max_thresh))
+<<<<<<< HEAD
     print("\nWe hope your stay with us is pleasant and enjoyable")
+=======
+    print("\nWe hope your stay with us is pleasant and enjoyable")  
+>>>>>>> 7eb3cd0491a995a088af763909c28728667147ad
 
     # Iterates over every position CSV within the folder
     for pos_file in glob.glob('data/positions/*.csv'):
