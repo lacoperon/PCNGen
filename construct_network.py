@@ -53,13 +53,17 @@ class NetworkConstructor:
             G = nk.graph.Graph(n=df.shape[0])
 
             i = 0
+            resid = None
             while df.shape[0] > 0:
-                if verbose:
-                    print("Currently dealing with node {}".format(i))
 
                 # Gets the positional and index info for current node
-                curr_node = df['node_id'][i]
+                curr_node = df['resi'][i]
                 cx, cy, cz = df['x'][i], df['y'][i], df['z'][i]
+
+                if verbose:
+                    if resid != curr_node:
+                        print(">>Currently dealing with residue {}".format(curr_node))
+                        resid = curr_node
 
                 df = df.iloc[1:] # Deletes first row of dataframe
 
@@ -73,6 +77,9 @@ class NetworkConstructor:
                 df_filt = df_filt.query("@cz - @max_thresh < z")
                 df_filt = df_filt.query("z < @cz + @max_thresh")
 
+                # And filters out self links
+                df_filt = df_filt.query("resi != @curr_node")
+
                 # Does actual distance calculation, for the remaining nodes
                 df_filt['dx2']  = (df_filt['x'] - cx) ** 2
                 df_filt['dy2']  = (df_filt['y'] - cy) ** 2
@@ -83,8 +90,9 @@ class NetworkConstructor:
                 df_filt = df_filt.query("dist > @min_thresh and dist < @max_thresh")
 
                 # Adds edges between the contacting nodes
-                for neigh_node in df_filt['node_id']:
-                    G.addEdge(curr_node, neigh_node)
+                for neigh_node in df_filt['resi']:
+                    if not G.hasEdge(curr_node, neigh_node):
+                        G.addEdge(curr_node, neigh_node)
 
                 i += 1
 
@@ -107,7 +115,7 @@ if __name__ == "__main__":
     print("-- Welcome to the Contact Network Constructor --")
     print("(Constructing basic network with min={}, max={})".format(
         min_thresh, max_thresh))
-    print("\nWe hope your stay with us is pleasant and enjoyable")  
+    print("\nWe hope your stay with us is pleasant and enjoyable")
 
     # Iterates over every position CSV within the folder
     for pos_file in glob.glob('data/positions/*.csv'):
@@ -115,6 +123,6 @@ if __name__ == "__main__":
             pos_file.split("/")[-1][:-4], max_thresh, "thresh")
 
         if not os.path.isfile(out_file):
-            NetworkConstructor(pos_file, "thresh", 0, max_thresh, out_file, False)
+            NetworkConstructor(pos_file, "thresh", 0, max_thresh, out_file, True)
         else:
             print("Already Exists: {}".format(out_file))

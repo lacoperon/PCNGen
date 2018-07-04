@@ -6,8 +6,7 @@ ContactNetwork
 This file aims to construct a dataframe of points based on the PDB input files,
 corresponding the the CA position in residues and C1' position in nucleotides.
 
-The result of this code will be a csv file output to
-
+The result of this code will be a csv file output to `data/positions/`
 '''
 
 import pymol
