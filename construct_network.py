@@ -63,7 +63,7 @@ class NetworkConstructor:
 
                 if verbose:
                     if resid != curr_node:
-                        print(">>Currently dealing with residue {}".format(curr_node))
+                        print(">>At residue {}{}".format(curr_chain,curr_node))
                         resid = curr_node
 
                 df = df.iloc[1:] # Deletes first row of dataframe
