@@ -1,6 +1,6 @@
 '''
 Elliot Williams
-June 14th, 2018
+July 4th, 2018
 ContactNetwork -- Network Construction
 
 This file aims to construct graphs readily available for analysis in the
