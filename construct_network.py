@@ -99,7 +99,7 @@ class NetworkConstructor:
             if out_file is not None:
                 if verbose:
                     print("Writing graph to {}".format(out_file))
-                nk.graphio.writeGraph(G, outfile, nk.Format.METIS)
+                nk.graphio.writeGraph(G, out_file, nk.Format.METIS)
             else:
                 if verbose:
                     print("Returning graph object")
