@@ -58,7 +58,7 @@ class NetworkConstructor:
 
                 # Gets the positional and index info for current node
                 curr_node  = df['resi'][i]
-                curr_chain = df['chain']
+                curr_chain = df['chain'][i]
                 cx, cy, cz = df['x'][i], df['y'][i], df['z'][i]
 
                 if verbose:
@@ -78,8 +78,8 @@ class NetworkConstructor:
                 df_filt = df_filt.query("@cz - @max_thresh < z")
                 df_filt = df_filt.query("z < @cz + @max_thresh")
 
-                # And filters out self links
-                df_filt = df_filt.query("!(resi == @curr_node and chain == @curr_chain)")
+                # # And filters out self links
+                df_filt = df_filt.query("~(resi == @curr_node and chain == @curr_chain)")
 
                 # Does actual distance calculation, for the remaining nodes
                 df_filt['dx2']  = (df_filt['x'] - cx) ** 2

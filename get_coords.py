@@ -1,6 +1,6 @@
 '''
 Elliot Williams
-June 1st, 2018
+July 3rd, 2018
 ContactNetwork
 
 This file aims to construct a dataframe of points based on the PDB input files,
@@ -16,17 +16,12 @@ import numpy as np
 import sys
 import pandas as pd
 import glob
-# import networkit as nk
 
 # TODO: Enable option to download PDB structures as need be followed by deletion,
 #       autodownload structures, or just use structures in directory only
 
 # TODO: Figure out how to map PyMol chain names to PDB chain names
 #       (they're not the same ...)
-
-# TODO: Wrap this all within a class definition so it's both pretty and usable
-
-# TODO: Add an option for changing what the nucleotide atom of choice is
 
 
 '''
@@ -42,15 +37,15 @@ class CoordConstruct:
     Input:
         struct_names : String list of structures to construct networks for
                        (these should be located within pdb_structs/ ),
-        type         : Contact network type ("aa", "nt", or "both"),
+        type         : Contact network type ("aa", "nt", "li", or "all"),
         min_thresh   : Minimum distance threshold for 'contact' in angstroms,
         max_thresh   : Maximum distance threshold for 'contact' in angstroms,
-        valid_chains : List of chains that we actually want to analyze
-                       (ie one might want to exclude tRNA, mRNA chains)
+        grain        : Whether or not the contact network should be based on
+                       alpha carbon distances, or all-atom distances
+                       ("allatom", or "ca")
 
     '''
-    def __init__(self, struct_names, type="both", min_thresh=None,
-                 max_thresh=8, valid_chains=None):
+    def __init__(self, struct_names, type="all", grain="allatom"):
 
         # The cmd object is equivalent to the PyMol command line, and refers to the
         # object which has functions corresponding to PyMol's API (poorly documented)
@@ -60,8 +55,23 @@ class CoordConstruct:
         self.stored = pymol.stored
         stored = pymol.stored
 
-        for struct_name in struct_names:
+        # Catches common argument errors
+        assert type in ["aa", "nt", "li", "all"]
+        assert grain in ["allatom","ca"]
 
+        # Generates coordinate-generating PyMol Selection
+        if grain is "allatom":
+            self.nt_sel = "resn a+t+c+g+u and !(hetatm)"
+            self.aa_sel = "byres name ca and !(hetatm)"
+        else:
+            self.nt_sel = "name C1' and resn a+t+c+g+u and !(hetatm)'"
+            self.aa_sel = "name ca and !(hetatm)"
+
+        # Note: This is guaranteed to contain all ligand atoms
+        # TODO: Ask KMT whether or not this is reasonable behaviour
+        self.li_sel = "not((resn a+t+c+g+u) | (byres name ca)) or hetatm"
+
+        for struct_name in struct_names:
             actual_name = struct_name.split('/')[-1]
             print(actual_name)
 
@@ -79,18 +89,34 @@ class CoordConstruct:
 
             aa_x, aa_y, aa_z, aa_chains, aa_index, aa_resi, aa_resn = [ [] ]*7
             nt_x, nt_y, nt_z, nt_chains, nt_index, nt_resi, nt_resn = [ [] ]*7
+            li_x, nt_y, nt_z, nt_chains, nt_index, nt_resi, nt_resn = [ [] ]*7
 
-            if type in ["aa", "both"]:
+            if type in ["aa", "all"]:
                 # Gets Euclidean position, chain name, PyMol index for amino acids
                 aa_xyz, aa_chains, aa_index, aa_resi, aa_resn = self.get_aa_data()
                 aa_x, aa_y, aa_z = zip(*aa_xyz)
-                print("There are {} amino acids in the network".format(len(aa_index)))
+                chain_resi = list(map(lambda x: x[0] + str(x[1]), zip(aa_chains, aa_resi)))
+                num_aa = len(set(chain_resi))
+                print("There are {} amino acids in the network".format(num_aa))
+                print("There are {} amino acid atoms".format(len(set(aa_index))))
 
-            if type in ["nt", "both"]:
+            if type in ["nt", "all"]:
                 # Gets Euclidean position, chain name, PyMol index for nucleotides
                 nt_xyz, nt_chains, nt_index, nt_resi, nt_resn = self.get_nt_data()
                 nt_x, nt_y, nt_z = zip(*nt_xyz)
-                print("There are {} nucleotides in the network".format(len(nt_index)))
+                chain_resi = list(map(lambda x: x[0] + str(x[1]), zip(nt_chains, nt_resi)))
+                num_nt = len(set(chain_resi))
+                print("There are {} nucleotides in the network".format(num_nt))
+                print("There are {} nucleotide atoms".format(len(set(nt_index))))
+
+            if type in ["li", "all"]:
+                # Gets Euclidean position, chain name, PyMol index for nucleotides
+                li_xyz, li_chains, li_index, li_resi, li_resn = self.get_li_data()
+                li_x,lit_y, li_z = zip(*li_xyz)
+                chain_resi = list(map(lambda x: x[0] + str(x[1]), zip(li_chains, li_resi)))
+                num_li = len(set(chain_resi))
+                print("There are {} ligands in the network".format(num_li))
+                print("There are {} ligand atoms".format(len(set(li_index))))
 
             # Constructs DataFrame from the above PyMol gleaned data
             df = pd.DataFrame({'x': nt_x + aa_x, 'y': nt_y + aa_y, 'z': nt_z + aa_y,
@@ -112,28 +138,28 @@ class CoordConstruct:
         cmd = self.cmd
         stored = self.stored
 
-        # Selects the alpha carbon associated with each amino acid
-        cmd.select("aa_ca", "name ca")
+        # Selects all amino acid atoms (ie all residues containing alpha carbon)
+        cmd.select("aa", self.aa_sel)
 
-        # Gets Euclidean position of each alpha carbon in aa_ca
+        # Gets Euclidean position of each atom in aa selection
         stored.aa_xyz = []
-        cmd.iterate_state(1,"aa_ca","stored.aa_xyz.append([x,y,z])")
+        cmd.iterate_state(1,"aa","stored.aa_xyz.append([x,y,z])")
 
-        # Gets the chain associated with each alpha carbon in aa_ca
+        # Gets the chain associated with each atom in aa selection
         stored.aa_chains = []
-        cmd.iterate_state(1, "aa_ca", "stored.aa_chains.append(chain)")
+        cmd.iterate_state(1, "aa", "stored.aa_chains.append(chain)")
 
-        # Gets the PyMol unique index associated with each alpha carbon in aa_ca
+        # Gets the PyMol unique index associated with each atom in aa selection
         stored.aa_index = []
-        cmd.iterate_state(1, "aa_ca", "stored.aa_index.append(index)")
+        cmd.iterate_state(1, "aa", "stored.aa_index.append(index)")
 
-        # Gets the residue index associated with each alpha carbon in aa_ca
+        # Gets the residue index associated with each atom in aa
         stored.aa_resi = []
-        cmd.iterate_state(1, "aa_ca", "stored.aa_resi.append(resi)")
+        cmd.iterate_state(1, "aa", "stored.aa_resi.append(resi)")
 
-        # Gets the amino acid type associated w each alpha carbon in aa_ca
+        # Gets the amino acid type associated w each atom in aa_ca
         stored.aa_resn = []
-        cmd.iterate_state(1, "aa_ca", "stored.aa_resn.append(resn)")
+        cmd.iterate_state(1, "aa", "stored.aa_resn.append(resn)")
 
         return (stored.aa_xyz, stored.aa_chains, stored.aa_index,
                stored.aa_resi, stored.aa_resn)
@@ -145,43 +171,67 @@ class CoordConstruct:
         cmd = self.cmd
         stored = self.stored
 
-        # Selects the C1' associated with each nucleotide
-        cmd.select("nucleo_C1", "name C1' and resn a+c+g+u")
+        # Selects all atoms associated with each nucleotide
+        cmd.select("nucleo", self.nt_sel)
 
-        # Gets Euclidean position of each C1' within nucleo_C1
+        # Gets Euclidean position of each atom
         stored.nt_xyz = []
-        cmd.iterate_state(1,"nucleo_C1","stored.nt_xyz.append([x,y,z])")
+        cmd.iterate_state(1,"nucleo","stored.nt_xyz.append([x,y,z])")
         nt_x, nt_y, nt_z = zip(*stored.nt_xyz)
 
-        # Gets the chain associated with each C1' in nucleo_C1
+        # Gets the chain associated with each atom
         stored.nt_chains = []
-        cmd.iterate_state(1, "nucleo_C1", "stored.nt_chains.append(chain)")
+        cmd.iterate_state(1, "nucleo", "stored.nt_chains.append(chain)")
 
-        # Gets the PyMol unique index associated with each C1' in nucleo_C1
+        # Gets the PyMol unique index associated with each atom
         stored.nt_index = []
-        cmd.iterate_state(1, "nucleo_C1", "stored.nt_index.append(index)")
+        cmd.iterate_state(1, "nucleo", "stored.nt_index.append(index)")
 
-        # Gets the residue index associated with each C1' in nucleo_C1
+        # Gets the residue index associated with each atom
         stored.nt_resi = []
-        cmd.iterate_state(1, "nucleo_C1", "stored.nt_resi.append(resi)")
+        cmd.iterate_state(1, "nucleo", "stored.nt_resi.append(resi)")
 
-        # Gets the base type associated with each C1' in nucleo_C1
+        # Gets the base type associated with each atom
         stored.nt_resn = []
-        cmd.iterate_state(1, "nucleo_C1", "stored.nt_resn.append(resn)")
+        cmd.iterate_state(1, "nucleo", "stored.nt_resn.append(resn)")
 
         return (stored.nt_xyz, stored.nt_chains, stored.nt_index,
                stored.nt_resi, stored.nt_resn)
+
+    def get_li_data(self):
+
+        cmd = self.cmd
+        stored = self.stored
+
+        # Selects all atoms associated with each nucleotide
+        cmd.select("ligands", self.li_sel)
+
+        # Gets Euclidean position of each atom
+        stored.li_xyz = []
+        cmd.iterate_state(1,"ligands","stored.li_xyz.append([x,y,z])")
+        li_x, li_y, li_z = zip(*stored.li_xyz)
+
+        # Gets the chain associated with each atom
+        stored.li_chains = []
+        cmd.iterate_state(1, "ligands", "stored.li_chains.append(chain)")
+
+        # Gets the PyMol unique index associated with each atom
+        stored.li_index = []
+        cmd.iterate_state(1, "ligands", "stored.li_index.append(index)")
+
+        # Gets the residue index associated with each atom
+        stored.li_resi = []
+        cmd.iterate_state(1, "ligands", "stored.li_resi.append(resi)")
+
+        # Gets the base type associated with each atom
+        stored.li_resn = []
+        cmd.iterate_state(1, "ligands", "stored.li_resn.append(resn)")
+
+        return (stored.li_xyz, stored.li_chains, stored.li_index,
+               stored.li_resi, stored.li_resn)
 
 if __name__ == "__main__":
 
     struct_names = glob.glob("data/pdb_structs/*.pdb")
     print(">> Reading in {} structures".format(len(struct_names)))
-    CoordConstruct(struct_names, type="both", min_thresh=None,
-                 max_thresh=8, valid_chains=None)
-
-
-# TODO: See if it's faster to calculate distances yourself, or to use pymol
-#       distance commands (I think the latter will be orders of magnitude faster)
-
-# TODO: Add edge construction code in either networkit or graph-tool
-#       (Requires benchmarking them first)
+    CoordConstruct(struct_names, type="all", grain="allatom")
