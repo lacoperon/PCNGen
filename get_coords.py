@@ -112,14 +112,11 @@ class CoordConstruct:
             if type in ["li", "all"]:
                 # Gets Euclidean position, chain name, PyMol index for nucleotides
                 li_xyz, li_chains, li_index, li_resi, li_resn = self.get_li_data()
-                li_x,lit_y, li_z = zip(*li_xyz)
+                li_x, li_y, li_z = zip(*li_xyz)
                 chain_resi = list(map(lambda x: x[0] + str(x[1]), zip(li_chains, li_resi)))
                 num_li = len(set(chain_resi))
                 print("There are {} ligands in the network".format(num_li))
                 print("There are {} ligand atoms".format(len(set(li_index))))
-
-            print(nt_x)
-            print(aa_x)
 
             # Constructs DataFrame from the above PyMol gleaned data
             df = pd.DataFrame({'x': nt_x + aa_x + li_x,
