@@ -44,26 +44,30 @@ class NetworkConstructor:
 
         # Reads in positional dataset
         df = pd.read_csv(position_path)
-        df['node_id'] = range(df.shape[0])
+
+        df["node_id"]  = df['chain'] + df["resi"].map(str)
+        unique_nodes = np.unique(df["node_id"])
+        NodeDict = dict(zip(unique_nodes, range(0, len(unique_nodes))))
+        print("There are {} nodes".format(len(NodeDict)))
 
         if csn_type is "thresh":
             print("Starting network connecting code")
 
             # Creates a new networkit graph with the correct number of nodes
-            G = nk.graph.Graph(n=df.shape[0])
+            G = nk.graph.Graph(n=len(NodeDict))
 
             i = 0
             resid = None
             while df.shape[0] > 0:
 
                 # Gets the positional and index info for current node
-                curr_node  = df['resi'][i]
-                curr_chain = df['chain'][i]
+                curr_node  = df['node_id'][i]
+                node_num   = NodeDict[curr_node]
                 cx, cy, cz = df['x'][i], df['y'][i], df['z'][i]
 
                 if verbose:
                     if resid != curr_node:
-                        print(">>At residue {}{}".format(curr_chain,curr_node))
+                        print(">>At residue {}".format(curr_node))
                         resid = curr_node
 
                 df = df.iloc[1:] # Deletes first row of dataframe
@@ -79,7 +83,7 @@ class NetworkConstructor:
                 df_filt = df_filt.query("z < @cz + @max_thresh")
 
                 # # And filters out self links
-                df_filt = df_filt.query("~(resi == @curr_node and chain == @curr_chain)")
+                df_filt = df_filt.query("~(node_id == @resid)")
 
                 # Does actual distance calculation, for the remaining nodes
                 df_filt['dx2']  = (df_filt['x'] - cx) ** 2
@@ -91,9 +95,11 @@ class NetworkConstructor:
                 df_filt = df_filt.query("dist > @min_thresh and dist < @max_thresh")
 
                 # Adds edges between the contacting nodes
-                for neigh_node in df_filt['resi']:
-                    if not G.hasEdge(curr_node, neigh_node):
-                        G.addEdge(curr_node, neigh_node)
+                for neigh_node in df_filt['node_id']:
+                    neigh_node_num = NodeDict[neigh_node]
+                    if not G.hasEdge(node_num, neigh_node_num):
+                        G.addEdge(node_num, neigh_node_num)
+                        print("Added edge bw {} and {}".format(node_num, neigh_node_num))
 
                 i += 1
 
@@ -110,17 +116,17 @@ if __name__ == "__main__":
 
     # Should take the distance cutoffs as arguments to the Python file
     assert len(sys.argv) == 3
-    min_thresh = int(sys.argv[1])
-    max_thresh = int(sys.argv[2])
+    min_thresh = float(sys.argv[1])
+    max_thresh = float(sys.argv[2])
 
     print("-- Welcome to the Contact Network Constructor --")
-    print("(Constructing basic network with min={}, max={})".format(
+    print("(Constructing basic network with min={}, max={:.2f})".format(
         min_thresh, max_thresh))
     print("\nWe hope your stay with us is pleasant and enjoyable")
 
     # Iterates over every position CSV within the folder
     for pos_file in glob.glob('data/positions/*.csv'):
-        out_file = "data/CSN_graphs/{}_{}A_{}.graph".format(
+        out_file = "data/CSN_graphs/{}_{:.2f}A_{}.graph".format(
             pos_file.split("/")[-1][:-4], max_thresh, "thresh")
 
         if not os.path.isfile(out_file):
