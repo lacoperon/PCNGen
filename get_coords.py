@@ -23,10 +23,6 @@ import glob
 # TODO: Figure out how to map PyMol chain names to PDB chain names
 #       (they're not the same ...)
 
-# TODO: Wrap this all within a class definition so it's both pretty and usable
-
-# TODO: Add an option for changing what the nucleotide atom of choice is
-
 
 '''
 This class defines and contains the PyMol interface code with which we obtain
@@ -91,9 +87,9 @@ class CoordConstruct:
             # deal with cases in which we don't want to include whole network
             # data.
 
-            aa_x, aa_y, aa_z, aa_chains, aa_index, aa_resi, aa_resn = [ [] ]*7
-            nt_x, nt_y, nt_z, nt_chains, nt_index, nt_resi, nt_resn = [ [] ]*7
-            li_x, nt_y, nt_z, nt_chains, nt_index, nt_resi, nt_resn = [ [] ]*7
+            aa_x, aa_y, aa_z, aa_chains, aa_index, aa_resi, aa_resn = [tuple([])]*7
+            nt_x, nt_y, nt_z, nt_chains, nt_index, nt_resi, nt_resn = [tuple([])]*7
+            li_x, li_y, li_z, li_chains, li_index, li_resi, li_resn = [tuple([])]*7
 
             if type in ["aa", "all"]:
                 # Gets Euclidean position, chain name, PyMol index for amino acids
@@ -116,19 +112,24 @@ class CoordConstruct:
             if type in ["li", "all"]:
                 # Gets Euclidean position, chain name, PyMol index for nucleotides
                 li_xyz, li_chains, li_index, li_resi, li_resn = self.get_li_data()
-                li_x,lit_y, li_z = zip(*li_xyz)
+                li_x, li_y, li_z = zip(*li_xyz)
                 chain_resi = list(map(lambda x: x[0] + str(x[1]), zip(li_chains, li_resi)))
                 num_li = len(set(chain_resi))
                 print("There are {} ligands in the network".format(num_li))
                 print("There are {} ligand atoms".format(len(set(li_index))))
 
             # Constructs DataFrame from the above PyMol gleaned data
-            df = pd.DataFrame({'x': nt_x + aa_x, 'y': nt_y + aa_y, 'z': nt_z + aa_y,
-                                 'chain': nt_chains + aa_chains,
-                                 'index': nt_index  + aa_index,
-                                 'resi' : nt_resi   + aa_resi ,
-                                 'resn' : nt_resn   + aa_resn ,
-                                 'type': ['nucleotide']*len(nt_x)+['amino acid']*len(aa_x)})
+            df = pd.DataFrame({'x': nt_x + aa_x + li_x,
+                               'y': nt_y + aa_y + li_y,
+                               'z': nt_z + aa_z + li_z,
+                               'chain': list(nt_chains) + list(aa_chains) + list(li_chains),
+                               'index': list(nt_index)  + list(aa_index)  + list(li_index),
+                               'resi' : list(nt_resi)   + list(aa_resi)   + list(li_resi) ,
+                               'resn' : list(nt_resn)   + list(aa_resn)   + list(li_resn),
+                               'type': ['nucleotide']*len(nt_x) +
+                                       ['amino acid']*len(aa_x) +
+                                       ['ligand']*len(li_x)
+                               })
 
             print("Writing positional CSV to `data/positions/`")
             df.to_csv("data/positions/{}.csv".format(actual_name[:-4]))
@@ -151,7 +152,7 @@ class CoordConstruct:
 
         # Gets the chain associated with each atom in aa selection
         stored.aa_chains = []
-        cmd.iterate_state(1, "aa", "stored.aa_chains.append(chain)")
+        cmd.iterate_state(1, "aa", "stored.aa_chains.append(segi)")
 
         # Gets the PyMol unique index associated with each atom in aa selection
         stored.aa_index = []
@@ -185,7 +186,7 @@ class CoordConstruct:
 
         # Gets the chain associated with each atom
         stored.nt_chains = []
-        cmd.iterate_state(1, "nucleo", "stored.nt_chains.append(chain)")
+        cmd.iterate_state(1, "nucleo", "stored.nt_chains.append(segi)")
 
         # Gets the PyMol unique index associated with each atom
         stored.nt_index = []
@@ -217,7 +218,7 @@ class CoordConstruct:
 
         # Gets the chain associated with each atom
         stored.li_chains = []
-        cmd.iterate_state(1, "ligands", "stored.li_chains.append(chain)")
+        cmd.iterate_state(1, "ligands", "stored.li_chains.append(segi)")
 
         # Gets the PyMol unique index associated with each atom
         stored.li_index = []
@@ -236,6 +237,11 @@ class CoordConstruct:
 
 if __name__ == "__main__":
 
+    if len(sys.argv) == 2:
+        type = sys.argv[1]
+    else:
+        type = "all"
+
     struct_names = glob.glob("data/pdb_structs/*.pdb")
     print(">> Reading in {} structures".format(len(struct_names)))
-    CoordConstruct(struct_names, type="all", grain="allatom")
+    CoordConstruct(struct_names, type=type, grain="allatom")
