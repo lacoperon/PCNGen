@@ -152,7 +152,7 @@ class CoordConstruct:
 
         # Gets the chain associated with each atom in aa selection
         stored.aa_chains = []
-        cmd.iterate_state(1, "aa", "stored.aa_chains.append(chain)")
+        cmd.iterate_state(1, "aa", "stored.aa_chains.append(segi)")
 
         # Gets the PyMol unique index associated with each atom in aa selection
         stored.aa_index = []
@@ -186,7 +186,7 @@ class CoordConstruct:
 
         # Gets the chain associated with each atom
         stored.nt_chains = []
-        cmd.iterate_state(1, "nucleo", "stored.nt_chains.append(chain)")
+        cmd.iterate_state(1, "nucleo", "stored.nt_chains.append(segi)")
 
         # Gets the PyMol unique index associated with each atom
         stored.nt_index = []
@@ -218,7 +218,7 @@ class CoordConstruct:
 
         # Gets the chain associated with each atom
         stored.li_chains = []
-        cmd.iterate_state(1, "ligands", "stored.li_chains.append(chain)")
+        cmd.iterate_state(1, "ligands", "stored.li_chains.append(segi)")
 
         # Gets the PyMol unique index associated with each atom
         stored.li_index = []
